@@ -1,0 +1,24 @@
+# Entorno de desarrollo: base de datos en contenedor, API y frontend en caliente
+# desde la maquina. Para el despliegue completo ver docker-compose.prod.yml.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: albumviajes-db
+    environment:
+      POSTGRES_DB: albumviajes
+      POSTGRES_USER: albumviajes
+      POSTGRES_PASSWORD: albumviajes
+    ports:
+      # 5433 en el host a proposito: 5432 suele estar ocupado por un PostgreSQL
+      # instalado localmente y las conexiones irian a la base equivocada.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U albumviajes -d albumviajes"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

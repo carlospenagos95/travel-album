@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AlbumViajes.Api/AlbumViajes.Api.csproj" />
+    <Project Path="src/AlbumViajes.Application/AlbumViajes.Application.csproj" />
+    <Project Path="src/AlbumViajes.Domain/AlbumViajes.Domain.csproj" />
+    <Project Path="src/AlbumViajes.Infrastructure/AlbumViajes.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AlbumViajes.Tests.Architecture/AlbumViajes.Tests.Architecture.csproj" />
+    <Project Path="tests/AlbumViajes.Tests.Integration/AlbumViajes.Tests.Integration.csproj" />
+    <Project Path="tests/AlbumViajes.Tests.Unit/AlbumViajes.Tests.Unit.csproj" />
+  </Folder>
+</Solution>

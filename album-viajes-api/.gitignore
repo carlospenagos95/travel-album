@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.idea/
+
+# Fotos importadas en desarrollo: PhotoStorage:RootPath apunta aqui.
+src/AlbumViajes.Api/data/
+
+# Secretos de desarrollo, por si alguien los vuelca a un archivo en vez de
+# usar "dotnet user-secrets".
+appsettings.Local.json

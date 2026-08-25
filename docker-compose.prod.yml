@@ -1,0 +1,71 @@
+# Despliegue en el servidor propio. Las imagenes salen de GHCR, construidas por
+# GitHub Actions. Copia .env.example a .env y rellena los valores antes de subir.
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    # Sin puertos publicados: solo la API la alcanza por la red interna.
+
+  api:
+    image: ghcr.io/${GITHUB_OWNER}/album-viajes-api:${API_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Database: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      Cors__AllowedOrigins__0: ${PUBLIC_URL}
+      # Wikimedia exige identificarse; sin un User-Agent propio responde 403.
+      Enrichment__UserAgent: ${WIKIMEDIA_USER_AGENT}
+      Enrichment__WikipediaLanguage: ${WIKIPEDIA_LANGUAGE:-es}
+      # Radio Browser pide lo mismo que Wikimedia: un User-Agent identificable.
+      Music__UserAgent: ${RADIO_USER_AGENT}
+      # Quien administra el album. El resto del mundo solo lee.
+      Auth__AllowedEmails__0: ${OWNER_EMAIL}
+      Auth__Google__ClientId: ${GOOGLE_CLIENT_ID}
+      Auth__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET}
+      # Album y API comparten origen detras del proxy, asi que basta la raiz.
+      Auth__PostLoginRedirect: /
+      PhotoStorage__RootPath: /data/photos
+    volumes:
+      # Las fotos y las claves de Data Protection sobreviven a los redespliegues.
+      # Perder las segundas invalida las sesiones y el permiso de Google guardado.
+      - photos:/data/photos
+      - dataprotection:/home/app/.aspnet/DataProtection-Keys
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  web:
+    image: ghcr.io/${GITHUB_OWNER}/album-viajes-web:${WEB_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      # Solo escucha en localhost: el reverse proxy con TLS del host publica el
+      # sitio. Ver deploy/albumviajes.nginx.conf.
+      - "127.0.0.1:8081:80"
+    volumes:
+      # Centro y zoom del mapa. Se lee al abrir la pagina, asi que cambiarlo es
+      # editar el archivo y recargar: no hace falta reconstruir la imagen.
+      - ./config.js:/usr/share/nginx/html/config.js:ro
+
+volumes:
+  pgdata:
+  photos:
+  dataprotection:
