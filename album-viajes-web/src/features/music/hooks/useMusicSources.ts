@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { musicApi } from '../../../api/client'
-import type { RadioStation } from '../../../api/types'
+import type { LibraryTrack, RadioStation } from '../../../api/types'
 import { cityKeys } from '../../cities/hooks/useCities'
 
 /**
@@ -27,10 +27,8 @@ export function useAddRadioStation(cityId: string) {
   return useMusicMutation(cityId, (station: RadioStation) => musicApi.addRadio(cityId, station))
 }
 
-export function useAddYouTubeVideo(cityId: string) {
-  return useMusicMutation(cityId, ({ urlOrId, title }: { urlOrId: string; title: string | null }) =>
-    musicApi.addYouTube(cityId, urlOrId, title),
-  )
+export function useAddTrack(cityId: string) {
+  return useMusicMutation(cityId, (track: LibraryTrack) => musicApi.addTrack(cityId, track))
 }
 
 export function useSetDefaultMusicSource(cityId: string) {

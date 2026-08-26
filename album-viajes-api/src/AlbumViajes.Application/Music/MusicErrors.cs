@@ -8,13 +8,16 @@ public static class MusicErrors
     public static Error NotFound(Guid id) =>
         Error.NotFound("music.notFound", $"No existe una fuente de musica con id {id} en esta ciudad.");
 
-    /// <summary>Los videos de YouTube los reproduce el navegador; el proxy es solo para la radio.</summary>
+    /// <summary>Una fuente sin direccion guardada no hay forma de reproducirla.</summary>
     public static Error NotStreamable() =>
-        Error.Validation("music.notStreamable", "Solo las emisoras de radio se reproducen desde el servidor.");
+        Error.Validation("music.notStreamable", "Esta fuente de musica no tiene audio que reproducir.");
 
     public static Error DirectoryUnavailable() =>
         Error.External("music.directoryUnavailable", "El directorio de emisoras no respondio.");
 
-    public static Error StationUnreachable(string label) =>
-        Error.External("music.stationUnreachable", $"La emisora {label} no esta transmitiendo ahora mismo.");
+    public static Error SourceUnreachable(string label) =>
+        Error.External("music.sourceUnreachable", $"{label} no esta disponible ahora mismo.");
+
+    public static Error LibraryUnavailable() =>
+        Error.External("music.libraryUnavailable", "El catalogo de canciones no respondio.");
 }

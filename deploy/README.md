@@ -18,29 +18,57 @@ El album funciona entero sin esto salvo la galeria. Para habilitarla:
    https://viajes.tu-dominio.com/api/auth/google/callback
    ```
 
-5. Copia el client id y el secreto a `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET`
-   en el `.env` del servidor.
+5. Guarda el client id y el secreto como los secrets `GOOGLE_CLIENT_ID` y
+   `GOOGLE_CLIENT_SECRET` del repositorio: el despliegue los escribe en el `.env`
+   del servidor. Las mismas credenciales sirven para entrar al album y para
+   Google Photos, porque son un unico cliente OAuth.
+
+El `redirect_uri` no se configura en ningun sitio: la API lo deriva de la
+peticion y del `X-Forwarded-Proto` que manda el proxy, asi que basta con que el
+autorizado en Google coincida con el dominio publico.
 
 El unico permiso que pide la aplicacion es
 `photospicker.mediaitems.readonly`: leer lo que tu elijas en el selector, nada mas.
 
-## 2. Primer despliegue
+## 2. Preparar el servidor (una sola vez)
+
+El despliegue lo hace GitHub Actions por SSH a traves de Cloudflare Access. En el
+servidor solo hay que dejar el terreno listo:
 
 ```bash
-git clone <este-repo> /opt/albumviajes && cd /opt/albumviajes
+sudo mkdir -p /opt/albumviajes
+sudo chown "$USER" /opt/albumviajes
 
-cp .env.example .env            # credenciales, dominio y correo del administrador
-cp config.example.js config.js  # centro y zoom del mapa
-
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+# El usuario del despliegue tiene que poder hablar con Docker sin sudo.
+sudo usermod -aG docker "$USER"
 ```
+
+El flujo copia `docker-compose.yml`, escribe el `.env` con los secrets del
+repositorio y siembra `config.js` a partir de `config.example.js` la primera vez.
+Ese `config.js` es del servidor: los despliegues siguientes no lo tocan, asi que
+el centro y el zoom del mapa se editan alli y se conservan.
 
 La API aplica sus migraciones al arrancar; no hay paso manual de base de datos.
 
+### Secrets del repositorio
+
+| Secret | Para que |
+| --- | --- |
+| `SSH_HOST`, `SSH_USER`, `SSH_KEY`, `SSH_KNOWN_HOSTS` | acceso al servidor |
+| `CF_ACCESS_CLIENT_ID`, `CF_ACCESS_CLIENT_SECRET` | token de servicio de Cloudflare Access |
+| `DEPLOY_PATH` | carpeta del despliegue, p. ej. `/opt/albumviajes` |
+| `PUBLIC_URL` | dominio publico: CORS y la comprobacion final |
+| `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD` | base de datos |
+| `OWNER_EMAIL` | unico correo que puede editar |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | entrada con Google y Google Photos |
+| `WIKIMEDIA_USER_AGENT`, `RADIO_USER_AGENT` | Wikipedia y Radio Browser exigen identificarse |
+
+`GITHUB_TOKEN` lo da la propia Action y el propietario sale de
+`github.repository_owner`: no hacen falta como secrets.
+
 ## 3. Proxy con TLS
 
-`docker-compose.prod.yml` publica el sitio solo en `127.0.0.1:8081`. Delante va
+El compose de produccion publica el sitio solo en `127.0.0.1:8081`. Delante va
 el nginx del host:
 
 ```bash
@@ -61,12 +89,17 @@ Dos detalles que importan y no son evidentes:
 
 ## 4. Actualizar
 
-GitHub Actions publica una imagen nueva en GHCR con cada push a `main`.
+Cada push a `main` dispara `.github/workflows/deploy.yml`: compila y prueba los
+dos proyectos, publica las imagenes en GHCR etiquetadas con el commit, las trae
+al servidor y comprueba que el sitio responde. Tambien se puede lanzar a mano
+desde la pestana Actions.
+
+Si hiciera falta hacerlo a mano en el servidor:
 
 ```bash
 cd /opt/albumviajes
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+docker compose pull
+docker compose up -d
 docker image prune -f
 ```
 
@@ -89,7 +122,7 @@ Para dejarlo en cron, diario a las 3:15:
 ## Restaurar
 
 ```bash
-gunzip -c db-FECHA.sql.gz | docker compose -f docker-compose.prod.yml exec -T db \
+gunzip -c db-FECHA.sql.gz | docker compose exec -T db \
   psql -U albumviajes albumviajes
 
 docker run --rm -v albumviajes_photos:/data -v "$PWD":/backup \

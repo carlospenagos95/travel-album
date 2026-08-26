@@ -29,6 +29,8 @@ public sealed class AlbumViajesApiFactory : WebApplicationFactory<Program>, IAsy
 
     public StubRadioDirectory RadioDirectory { get; } = new();
 
+    public StubMusicLibrary MusicLibrary { get; } = new();
+
     public StubAudioStreamReader AudioStreamReader { get; } = new();
 
     /// <summary>Carpeta donde acaban las fotos importadas durante los tests.</summary>
@@ -76,6 +78,8 @@ public sealed class AlbumViajesApiFactory : WebApplicationFactory<Program>, IAsy
         Enricher.Reset();
         PhotoLibrary.Reset();
         RadioDirectory.Reset();
+        MusicLibrary.Reset();
+        AudioStreamReader.Reset();
 
         if (Directory.Exists(PhotoRoot))
         {
@@ -99,6 +103,9 @@ public sealed class AlbumViajesApiFactory : WebApplicationFactory<Program>, IAsy
 
             services.RemoveAll<IRadioDirectory>();
             services.AddSingleton<IRadioDirectory>(RadioDirectory);
+
+            services.RemoveAll<IMusicLibrary>();
+            services.AddSingleton<IMusicLibrary>(MusicLibrary);
 
             services.RemoveAll<IAudioStreamReader>();
             services.AddSingleton<IAudioStreamReader>(AudioStreamReader);

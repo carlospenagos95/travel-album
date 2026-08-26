@@ -98,6 +98,12 @@ public static class DependencyInjection
             client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
         });
 
+        services.AddHttpClient<IMusicLibrary, ItunesMusicLibrary>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(options.SearchTimeoutSeconds);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(options.UserAgent);
+        });
+
         services
             .AddHttpClient<IAudioStreamReader, HttpAudioStreamReader>(client =>
             {

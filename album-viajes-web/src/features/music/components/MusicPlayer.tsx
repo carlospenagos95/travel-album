@@ -8,28 +8,25 @@ interface MusicPlayerProps {
 /**
  * Reproduce la fuente que suena al abrir la ciudad.
  *
- * La radio pasa por el proxy del propio servidor: muchas emisoras siguen en http
- * plano y el navegador las bloquearia al servir el album por https.
+ * Todo pasa por el proxy del propio servidor: muchas emisoras siguen en http
+ * plano y el navegador las bloquearia al servir el album por https, y las
+ * muestras de iTunes llegan con un tipo de contenido que no todos los
+ * navegadores reconocen.
+ *
+ * Las canciones son muestras de treinta segundos, asi que se repiten: el
+ * silencio a media galeria se nota mas que la repeticion. El bucle suena desde
+ * lo que el navegador ya tiene en memoria, sin volver a pedirlo al servidor.
  *
  * Los navegadores rechazan reproducir sonido sin que el usuario haya interactuado
- * antes con la pagina. Ese rechazo se recoge y se convierte en un boton de play,
- * en lugar de dejar el reproductor mudo sin explicacion.
+ * antes con la pagina. Abrir la ciudad es un clic, asi que normalmente arranca
+ * sola; si aun asi se bloquea, el rechazo se recoge y se convierte en un boton
+ * de play en lugar de dejar el reproductor mudo sin explicacion.
  */
 export function MusicPlayer({ source }: MusicPlayerProps) {
-  if (source.kind === 'YouTube' && source.youTubeVideoId !== null) {
-    return <YouTubePlayer videoId={source.youTubeVideoId} label={source.label} />
-  }
-
-  if (source.streamUrl !== null) {
-    return <RadioPlayer streamUrl={source.streamUrl} label={source.label} />
-  }
-
-  return <p className="hint">Esta fuente de musica no se puede reproducir.</p>
-}
-
-function RadioPlayer({ streamUrl, label }: { streamUrl: string; label: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isBlocked, setIsBlocked] = useState(false)
+
+  const { streamUrl } = source
 
   useEffect(() => {
     const audio = audioRef.current
@@ -53,7 +50,10 @@ function RadioPlayer({ streamUrl, label }: { streamUrl: string; label: string })
 
   return (
     <div className="player">
-      <p className="hint">Suena {label}</p>
+      <p className="hint">
+        Suena {source.label}
+        {source.artist !== null && ` - ${source.artist}`}
+      </p>
 
       {isBlocked && (
         <button type="button" onClick={play}>
@@ -62,25 +62,9 @@ function RadioPlayer({ streamUrl, label }: { streamUrl: string; label: string })
       )}
 
       {/* controls deja pausar y bajar el volumen sin salir de la ficha. */}
-      <audio ref={audioRef} src={streamUrl} controls preload="none">
+      <audio ref={audioRef} src={streamUrl} controls loop preload="none">
         Tu navegador no puede reproducir audio.
       </audio>
-    </div>
-  )
-}
-
-function YouTubePlayer({ videoId, label }: { videoId: string; label: string }) {
-  return (
-    <div className="player">
-      <p className="hint">Suena {label}</p>
-      <iframe
-        className="youtube"
-        // nocookie evita que YouTube deje rastro en quien solo viene a ver el album.
-        src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1`}
-        title={label}
-        allow="autoplay; encrypted-media; picture-in-picture"
-        allowFullScreen
-      />
     </div>
   )
 }

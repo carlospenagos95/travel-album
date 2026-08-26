@@ -8,7 +8,7 @@ namespace AlbumViajes.Domain.Entities;
 public enum MusicKind
 {
     RadioStation,
-    YouTube,
+    Track,
 }
 
 /// <summary>
@@ -20,6 +20,7 @@ public enum MusicKind
 public sealed class MusicSource : Entity
 {
     public const int MaxLabelLength = 200;
+    public const int MaxTrackIdLength = 32;
 
     /// <summary>Solo lo usa EF Core al materializar filas. El dominio nunca lo llama.</summary>
     private MusicSource()
@@ -32,7 +33,9 @@ public sealed class MusicSource : Entity
         string label,
         string? radioStationUuid,
         string? radioStreamUrl,
-        string? youTubeVideoId,
+        string? trackId,
+        string? trackArtist,
+        string? trackAudioUrl,
         DateTimeOffset createdAt)
         : base(id)
     {
@@ -41,7 +44,9 @@ public sealed class MusicSource : Entity
         Label = label;
         RadioStationUuid = radioStationUuid;
         RadioStreamUrl = radioStreamUrl;
-        YouTubeVideoId = youTubeVideoId;
+        TrackId = trackId;
+        TrackArtist = trackArtist;
+        TrackAudioUrl = trackAudioUrl;
         CreatedAt = createdAt;
     }
 
@@ -49,7 +54,7 @@ public sealed class MusicSource : Entity
 
     public MusicKind Kind { get; private set; }
 
-    /// <summary>Nombre visible: la emisora o el titulo del video.</summary>
+    /// <summary>Nombre visible: la emisora o el titulo de la cancion.</summary>
     public string Label { get; private set; }
 
     /// <summary>Suena al abrir la ciudad. Solo una fuente por ciudad puede serlo.</summary>
@@ -63,7 +68,16 @@ public sealed class MusicSource : Entity
     /// </summary>
     public string? RadioStreamUrl { get; private set; }
 
-    public string? YouTubeVideoId { get; private set; }
+    /// <summary>Identificador de la cancion en el catalogo externo.</summary>
+    public string? TrackId { get; private set; }
+
+    public string? TrackArtist { get; private set; }
+
+    /// <summary>
+    /// Audio que publica el catalogo. Como el de la radio, se sirve a traves del
+    /// proxy y no directamente al navegador.
+    /// </summary>
+    public string? TrackAudioUrl { get; private set; }
 
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -99,37 +113,51 @@ public sealed class MusicSource : Entity
             label.Value,
             uuid,
             url.Value.ToString(),
-            youTubeVideoId: null,
+            trackId: null,
+            trackArtist: null,
+            trackAudioUrl: null,
             now);
     }
 
-    internal static Result<MusicSource> ForYouTube(Guid cityId, string urlOrId, string? title, DateTimeOffset now)
+    internal static Result<MusicSource> ForTrack(
+        Guid cityId,
+        string trackId,
+        string title,
+        string? artist,
+        string audioUrl,
+        DateTimeOffset now)
     {
-        var video = YouTubeVideo.Create(urlOrId);
-        if (!video.IsSuccess)
-        {
-            return video.Error!;
-        }
-
-        // Sin titulo el enlace sigue siendo utilizable: se etiqueta con el id.
-        var label = NormalizeLabel(
-            string.IsNullOrWhiteSpace(title) ? video.Value.Value : title,
-            "music.title",
-            "titulo del video");
-
+        var label = NormalizeLabel(title, "music.trackTitle", "titulo de la cancion");
         if (!label.IsSuccess)
         {
             return label.Error!;
         }
 
+        var id = trackId?.Trim();
+        if (string.IsNullOrEmpty(id) || id.Length > MaxTrackIdLength)
+        {
+            return Error.Validation("music.trackId", "Falta el identificador de la cancion.");
+        }
+
+        var url = StreamUrl.Create(audioUrl);
+        if (!url.IsSuccess)
+        {
+            return url.Error!;
+        }
+
+        var normalizedArtist = artist?.Trim();
+
         return new MusicSource(
             Guid.NewGuid(),
             cityId,
-            MusicKind.YouTube,
+            MusicKind.Track,
             label.Value,
             radioStationUuid: null,
             radioStreamUrl: null,
-            video.Value.Value,
+            id,
+            // El artista es informativo: sin el la cancion sigue sonando.
+            string.IsNullOrEmpty(normalizedArtist) ? null : Truncate(normalizedArtist),
+            url.Value.ToString(),
             now);
     }
 
@@ -144,6 +172,9 @@ public sealed class MusicSource : Entity
             return Error.Validation(code, $"El {label} es obligatorio.");
         }
 
-        return trimmed.Length > MaxLabelLength ? trimmed[..MaxLabelLength] : trimmed;
+        return Truncate(trimmed);
     }
+
+    private static string Truncate(string value) =>
+        value.Length > MaxLabelLength ? value[..MaxLabelLength] : value;
 }

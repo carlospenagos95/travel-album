@@ -5,12 +5,12 @@ using AlbumViajes.Domain.Common;
 
 namespace AlbumViajes.Application.Music.UseCases;
 
-/// <summary>Asocia a la ciudad un video de YouTube pegando su enlace.</summary>
-public sealed class AddYouTubeVideoHandler(ICityRepository cities, IUnitOfWork unitOfWork, IClock clock)
+/// <summary>Asocia a la ciudad una cancion elegida en el catalogo.</summary>
+public sealed class AddTrackHandler(ICityRepository cities, IUnitOfWork unitOfWork, IClock clock)
 {
     public async Task<Result<MusicSourceResponse>> HandleAsync(
         Guid cityId,
-        AddYouTubeVideoRequest request,
+        AddTrackRequest request,
         CancellationToken cancellationToken)
     {
         var city = await cities.FindAsync(cityId, cancellationToken);
@@ -19,7 +19,7 @@ public sealed class AddYouTubeVideoHandler(ICityRepository cities, IUnitOfWork u
             return CityErrors.NotFound(cityId);
         }
 
-        var added = city.AddYouTubeVideo(request.UrlOrId, request.Title, clock.UtcNow);
+        var added = city.AddTrack(request.TrackId, request.Title, request.Artist, request.AudioUrl, clock.UtcNow);
         if (!added.IsSuccess)
         {
             return added.Error!;

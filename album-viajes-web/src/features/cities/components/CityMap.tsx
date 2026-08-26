@@ -1,5 +1,6 @@
 import L from 'leaflet'
-import { MapContainer, Marker, Popup, TileLayer, useMapEvents } from 'react-leaflet'
+import { useEffect, useRef } from 'react'
+import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet'
 import type { CitySummary } from '../../../api/types'
 import { mapConfig } from '../../../config/appConfig'
 
@@ -37,13 +38,51 @@ function MapClickHandler({ onPick }: { onPick: (latitude: number, longitude: num
   return null
 }
 
+/**
+ * Acerca el mapa a la ciudad abierta y lo devuelve al encuadre de `config.js` al
+ * cerrarla.
+ *
+ * El efecto depende del id y no de la ciudad entera: cualquier refresco de la
+ * lista traeria un objeto nuevo y le robaria al usuario el encuadre que hubiera
+ * elegido a mano.
+ */
+function MapFocus({ city }: { city: CitySummary | null }) {
+  const map = useMap()
+  const hasFocused = useRef(false)
+
+  const cityId = city?.id ?? null
+  const latitude = city?.latitude ?? null
+  const longitude = city?.longitude ?? null
+
+  useEffect(() => {
+    if (cityId !== null && latitude !== null && longitude !== null) {
+      hasFocused.current = true
+      map.flyTo([latitude, longitude], mapConfig.cityZoom)
+      return
+    }
+
+    // Al abrir la pagina no hay nada de lo que volver: el mapa ya arranca en el
+    // centro configurado y volar hacia el mismo sitio solo se veria raro.
+    if (hasFocused.current) {
+      map.flyTo(mapConfig.center, mapConfig.zoom)
+    }
+    // Las coordenadas acompañan al id: cambian juntas o no cambian.
+  }, [cityId, latitude, longitude, map])
+
+  return null
+}
+
 export function CityMap({ cities, selectedId, onSelect, onPickCoordinates }: CityMapProps) {
+  const selectedCity = cities.find((city) => city.id === selectedId) ?? null
+
   return (
     <MapContainer center={mapConfig.center} zoom={mapConfig.zoom} className="map" worldCopyJump>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+
+      <MapFocus city={selectedCity} />
 
       {onPickCoordinates !== null && <MapClickHandler onPick={onPickCoordinates} />}
 

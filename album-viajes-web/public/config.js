@@ -11,5 +11,8 @@ window.__ALBUM_VIAJES__ = {
 
     // 6 encuadra Colombia entera; 11 o 12 muestran una sola ciudad.
     zoom: 6,
+
+    // Acercamiento al abrir una ciudad, para ver su casco urbano.
+    cityZoom: 12,
   },
 }

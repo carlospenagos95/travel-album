@@ -6,6 +6,7 @@ namespace AlbumViajes.Tests.Unit.Domain;
 public sealed class CityMusicTests
 {
     private const string StreamUrl = "http://stream.ejemplo.invalido/paisa.mp3";
+    private const string TrackUrl = "https://prod-1.storage.jamendo.invalido/1532771.mp3";
 
     private static readonly DateTimeOffset Now = new(2026, 8, 23, 12, 0, 0, TimeSpan.Zero);
 
@@ -27,10 +28,10 @@ public sealed class CityMusicTests
         var city = NewCity();
         var radio = city.AddRadioStation("uuid-1", "Radio Paisa", StreamUrl, Now).Value;
 
-        var video = city.AddYouTubeVideo("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "Cumbia", Now);
+        var track = city.AddTrack("1532771", "Cumbia", "Los Ejemplos", TrackUrl, Now);
 
-        Assert.True(video.IsSuccess);
-        Assert.False(video.Value.IsDefault);
+        Assert.True(track.IsSuccess);
+        Assert.False(track.Value.IsDefault);
         Assert.Equal(radio.Id, city.DefaultMusicSource!.Id);
     }
 
@@ -39,13 +40,13 @@ public sealed class CityMusicTests
     {
         var city = NewCity();
         city.AddRadioStation("uuid-1", "Radio Paisa", StreamUrl, Now);
-        var video = city.AddYouTubeVideo("dQw4w9WgXcQ", null, Now).Value;
+        var track = city.AddTrack("1532771", "Cumbia", null, TrackUrl, Now).Value;
 
-        var result = city.SetDefaultMusicSource(video.Id, Now);
+        var result = city.SetDefaultMusicSource(track.Id, Now);
 
         Assert.True(result.IsSuccess);
         Assert.Single(city.MusicSources, source => source.IsDefault);
-        Assert.Equal(video.Id, city.DefaultMusicSource!.Id);
+        Assert.Equal(track.Id, city.DefaultMusicSource!.Id);
     }
 
     [Fact]
@@ -53,22 +54,48 @@ public sealed class CityMusicTests
     {
         var city = NewCity();
         var radio = city.AddRadioStation("uuid-1", "Radio Paisa", StreamUrl, Now).Value;
-        city.AddYouTubeVideo("dQw4w9WgXcQ", null, Now);
+        city.AddTrack("1532771", "Cumbia", null, TrackUrl, Now);
 
         Assert.True(city.RemoveMusicSource(radio.Id, Now).IsSuccess);
         Assert.NotNull(city.DefaultMusicSource);
     }
 
     [Fact]
-    public void Sin_titulo_el_video_se_etiqueta_con_su_identificador()
+    public void Una_cancion_guarda_su_artista_y_su_audio()
     {
         var city = NewCity();
 
-        var video = city.AddYouTubeVideo("https://youtu.be/dQw4w9WgXcQ", "   ", Now);
+        var track = city.AddTrack("1532771", "Cumbia", "  Los Ejemplos  ", TrackUrl, Now);
 
-        Assert.True(video.IsSuccess);
-        Assert.Equal("dQw4w9WgXcQ", video.Value.Label);
-        Assert.Equal(MusicKind.YouTube, video.Value.Kind);
+        Assert.True(track.IsSuccess);
+        Assert.Equal("Cumbia", track.Value.Label);
+        Assert.Equal("Los Ejemplos", track.Value.TrackArtist);
+        Assert.Equal(TrackUrl, track.Value.TrackAudioUrl);
+        Assert.Equal(MusicKind.Track, track.Value.Kind);
+    }
+
+    [Fact]
+    public void Una_cancion_sin_titulo_se_rechaza()
+    {
+        var city = NewCity();
+
+        var track = city.AddTrack("1532771", "   ", null, TrackUrl, Now);
+
+        Assert.False(track.IsSuccess);
+        Assert.Equal("music.trackTitle", track.Error!.Code);
+        Assert.Empty(city.MusicSources);
+    }
+
+    [Fact]
+    public void Una_cancion_sin_audio_valido_se_rechaza()
+    {
+        var city = NewCity();
+
+        var track = city.AddTrack("1532771", "Cumbia", null, "ftp://ejemplo.invalido/x", Now);
+
+        Assert.False(track.IsSuccess);
+        Assert.Equal("music.streamUrl", track.Error!.Code);
+        Assert.Empty(city.MusicSources);
     }
 
     [Fact]

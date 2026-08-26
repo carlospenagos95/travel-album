@@ -66,16 +66,30 @@ export interface PhotoImportResult {
   photos: Photo[]
 }
 
-export type MusicKind = 'RadioStation' | 'YouTube'
+export type MusicKind = 'RadioStation' | 'Track'
 
 export interface MusicSource {
   id: string
   kind: MusicKind
   label: string
   isDefault: boolean
-  /** Para la radio, el proxy propio; null para YouTube. */
-  streamUrl: string | null
-  youTubeVideoId: string | null
+  /** Siempre el proxy propio, tanto para la radio como para una cancion. */
+  streamUrl: string
+  artist: string | null
+}
+
+/**
+ * Cancion del catalogo de iTunes, antes de asociarla a una ciudad. `audioUrl` es
+ * una muestra de treinta segundos; `durationSeconds`, lo que dura la cancion
+ * entera.
+ */
+export interface LibraryTrack {
+  id: string
+  name: string
+  artistName: string | null
+  audioUrl: string
+  durationSeconds: number
+  imageUrl: string | null
 }
 
 export interface RadioStation {

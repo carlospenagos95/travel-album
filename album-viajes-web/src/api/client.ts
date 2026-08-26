@@ -2,6 +2,7 @@ import type {
   CityDetail,
   CitySummary,
   CurrentUser,
+  LibraryTrack,
   MusicSource,
   Photo,
   PhotoImportResult,
@@ -120,10 +121,11 @@ export const photosApi = {
 }
 
 export const musicApi = {
-  searchStations: (query: string, countryCode: string | null) =>
+  searchStations: (query: string, countryCode: string | null, signal?: AbortSignal) =>
     request<RadioStation[]>(
       `/stations/search?query=${encodeURIComponent(query)}` +
         (countryCode === null ? '' : `&countryCode=${encodeURIComponent(countryCode)}`),
+      { signal },
     ),
 
   addRadio: (cityId: string, station: RadioStation) =>
@@ -136,10 +138,18 @@ export const musicApi = {
       }),
     }),
 
-  addYouTube: (cityId: string, urlOrId: string, title: string | null) =>
-    request<MusicSource>(`/cities/${cityId}/music/youtube`, {
+  searchTracks: (query: string, signal?: AbortSignal) =>
+    request<LibraryTrack[]>(`/tracks/search?query=${encodeURIComponent(query)}`, { signal }),
+
+  addTrack: (cityId: string, track: LibraryTrack) =>
+    request<MusicSource>(`/cities/${cityId}/music/track`, {
       method: 'POST',
-      body: JSON.stringify({ urlOrId, title }),
+      body: JSON.stringify({
+        trackId: track.id,
+        title: track.name,
+        artist: track.artistName,
+        audioUrl: track.audioUrl,
+      }),
     }),
 
   setDefault: (cityId: string, musicSourceId: string) =>

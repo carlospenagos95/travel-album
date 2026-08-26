@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using AlbumViajes.Application.Cities.Contracts;
 using AlbumViajes.Application.Music.Contracts;
@@ -23,9 +24,11 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
         Assert.True(radio.IsDefault);
         Assert.Equal("RadioStation", radio.Kind);
 
-        var youTube = await AddYouTubeAsync(city.Id, "https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-        Assert.False(youTube.IsDefault);
-        Assert.Equal("dQw4w9WgXcQ", youTube.YouTubeVideoId);
+        var track = await AddTrackAsync(city.Id);
+        Assert.False(track.IsDefault);
+        Assert.Equal("Track", track.Kind);
+        Assert.Equal(StubMusicLibrary.Track.ArtistName, track.Artist);
+        Assert.Equal($"/api/cities/{city.Id}/music/{track.Id}/stream", track.StreamUrl);
     }
 
     [Fact]
@@ -46,14 +49,51 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
     }
 
     [Fact]
-    public async Task Un_video_de_youtube_no_se_reproduce_por_el_proxy()
+    public async Task La_cancion_tambien_pasa_por_el_proxy_y_con_un_tipo_que_el_navegador_entiende()
+    {
+        // iTunes marca sus muestras como audio/x-m4p, que algunos navegadores no
+        // reconocen aunque el fichero sea AAC corriente.
+        factory.AudioStreamReader.ContentType = "audio/x-m4p";
+
+        var city = await CreateCityAsync();
+        var track = await AddTrackAsync(city.Id);
+
+        // Publico: quien ve el album oye la ciudad sin identificarse.
+        var visitor = factory.CreateClient();
+        var response = await visitor.GetAsync($"/api/cities/{city.Id}/music/{track.Id}/stream");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("audio/mp4", response.Content.Headers.ContentType?.MediaType);
+        Assert.Equal(StubAudioStreamReader.Sample, await response.Content.ReadAsStringAsync());
+        Assert.Equal(StubMusicLibrary.Track.AudioUrl, factory.AudioStreamReader.LastRequestedUrl?.ToString());
+
+        // Un .m4a lleva el indice al final: sin poder pedir trozos sueltos, el
+        // navegador no reproduce nada aunque la respuesta llegue entera.
+        var partial = new HttpRequestMessage(HttpMethod.Get, $"/api/cities/{city.Id}/music/{track.Id}/stream");
+        partial.Headers.Range = new RangeHeaderValue(0, 3);
+
+        var chunk = await visitor.SendAsync(partial);
+
+        Assert.Equal(HttpStatusCode.PartialContent, chunk.StatusCode);
+        Assert.Equal(StubAudioStreamReader.Sample[..4], await chunk.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task La_radio_se_reenvia_segun_llega_y_no_admite_trozos()
     {
         var city = await CreateCityAsync();
-        var youTube = await AddYouTubeAsync(city.Id, "dQw4w9WgXcQ");
+        var radio = await AddRadioAsync(city.Id);
 
-        var response = await _owner.GetAsync($"/api/cities/{city.Id}/music/{youTube.Id}/stream");
+        var visitor = factory.CreateClient();
+        var request = new HttpRequestMessage(HttpMethod.Get, radio.StreamUrl);
+        request.Headers.Range = new RangeHeaderValue(0, 3);
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        // El stream de una emisora no termina, asi que no hay nada que recorrer:
+        // se entrega entero y se ignora el rango.
+        var response = await visitor.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(StubAudioStreamReader.Sample, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
@@ -61,15 +101,15 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
     {
         var city = await CreateCityAsync();
         await AddRadioAsync(city.Id);
-        var youTube = await AddYouTubeAsync(city.Id, "https://youtu.be/dQw4w9WgXcQ");
+        var track = await AddTrackAsync(city.Id);
 
-        var response = await _owner.PutAsync($"/api/cities/{city.Id}/music/{youTube.Id}/default", content: null);
+        var response = await _owner.PutAsync($"/api/cities/{city.Id}/music/{track.Id}/default", content: null);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var playlist = await response.Content.ReadFromJsonAsync<List<MusicSourceResponse>>();
         Assert.NotNull(playlist);
         Assert.Single(playlist, source => source.IsDefault);
-        Assert.Equal(youTube.Id, playlist[0].Id);
+        Assert.Equal(track.Id, playlist[0].Id);
     }
 
     [Fact]
@@ -77,7 +117,7 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
     {
         var city = await CreateCityAsync();
         var radio = await AddRadioAsync(city.Id);
-        await AddYouTubeAsync(city.Id, "dQw4w9WgXcQ");
+        await AddTrackAsync(city.Id);
 
         var deleted = await _owner.DeleteAsync($"/api/cities/{city.Id}/music/{radio.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
@@ -89,15 +129,30 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
     }
 
     [Fact]
-    public async Task Un_enlace_que_no_es_de_youtube_se_rechaza()
+    public async Task Una_cancion_sin_audio_valido_se_rechaza()
     {
         var city = await CreateCityAsync();
 
         var response = await _owner.PostAsJsonAsync(
-            $"/api/cities/{city.Id}/music/youtube",
-            new AddYouTubeVideoRequest("https://ejemplo.invalido/cancion", null));
+            $"/api/cities/{city.Id}/music/track",
+            new AddTrackRequest("1532771", "Cumbia del recuerdo", "Los Ejemplos", "ftp://ejemplo.invalido/cancion"));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Buscar_canciones_requiere_ser_el_duenio()
+    {
+        var visitor = factory.CreateClient();
+
+        var response = await visitor.GetAsync("/api/tracks/search?query=cumbia");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+
+        var found = await _owner.GetFromJsonAsync<List<LibraryTrackResponse>>("/api/tracks/search?query=cumbia");
+
+        Assert.NotNull(found);
+        Assert.Equal(StubMusicLibrary.Track.Id, found[0].Id);
+        Assert.Equal(StubMusicLibrary.Track.AudioUrl, found[0].AudioUrl);
     }
 
     [Fact]
@@ -131,11 +186,13 @@ public sealed class MusicEndpointsTests(AlbumViajesApiFactory factory)
         return created;
     }
 
-    private async Task<MusicSourceResponse> AddYouTubeAsync(Guid cityId, string urlOrId)
+    private async Task<MusicSourceResponse> AddTrackAsync(Guid cityId)
     {
+        var track = StubMusicLibrary.Track;
+
         var response = await _owner.PostAsJsonAsync(
-            $"/api/cities/{cityId}/music/youtube",
-            new AddYouTubeVideoRequest(urlOrId, "Cumbia del recuerdo"));
+            $"/api/cities/{cityId}/music/track",
+            new AddTrackRequest(track.Id, track.Name, track.ArtistName, track.AudioUrl));
 
         response.EnsureSuccessStatusCode();
 

@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import type { RadioStation } from '../../../api/types'
-import { useAddRadioStation, useAddYouTubeVideo } from '../hooks/useMusicSources'
+import type { LibraryTrack, RadioStation } from '../../../api/types'
+import { useAddRadioStation, useAddTrack } from '../hooks/useMusicSources'
 import { useStationSearch } from '../hooks/useStationSearch'
+import { useTrackSearch } from '../hooks/useTrackSearch'
 
 interface MusicEditorProps {
   cityId: string
@@ -10,25 +11,36 @@ interface MusicEditorProps {
   errorMessageOf: (error: unknown) => string
 }
 
-function describe(station: RadioStation): string {
+function describeStation(station: RadioStation): string {
   const parts = [station.country, station.codec, station.bitrate > 0 ? `${station.bitrate} kbps` : null]
 
   return parts.filter((part) => part !== null && part !== '').join(' - ')
 }
 
-/** Asociar musica a la ciudad: una emisora del directorio o un video de YouTube. */
+function describeTrack(track: LibraryTrack): string {
+  const minutes = Math.floor(track.durationSeconds / 60)
+  const seconds = (track.durationSeconds % 60).toString().padStart(2, '0')
+
+  // La duracion es la de la cancion entera; lo que va a sonar son 30 segundos.
+  const parts = [track.artistName, track.durationSeconds > 0 ? `${minutes}:${seconds}` : null]
+
+  return parts.filter((part) => part !== null && part !== '').join(' - ')
+}
+
+/**
+ * Asociar musica a la ciudad: una emisora del directorio o una cancion del
+ * catalogo de iTunes. La emisora cambia de tema sola y suena entera; la cancion
+ * es una muestra de treinta segundos que se repite en bucle.
+ */
 export function MusicEditor({ cityId, cityName, countryCode, errorMessageOf }: MusicEditorProps) {
-  // La busqueda arranca por el nombre de la ciudad, que es lo que se suele querer.
-  const [query, setQuery] = useState(cityName)
-  const [videoUrl, setVideoUrl] = useState('')
+  // Las busquedas arrancan por el nombre de la ciudad, que es lo que se suele querer.
+  const [stationQuery, setStationQuery] = useState(cityName)
+  const [trackQuery, setTrackQuery] = useState(cityName)
 
-  const search = useStationSearch(query, countryCode)
+  const stations = useStationSearch(stationQuery, countryCode)
+  const tracks = useTrackSearch(trackQuery)
   const addStation = useAddRadioStation(cityId)
-  const addVideo = useAddYouTubeVideo(cityId)
-
-  const submitVideo = () => {
-    addVideo.mutate({ urlOrId: videoUrl, title: null }, { onSuccess: () => setVideoUrl('') })
-  }
+  const addTrack = useAddTrack(cityId)
 
   return (
     <div className="music-editor">
@@ -36,22 +48,24 @@ export function MusicEditor({ cityId, cityName, countryCode, errorMessageOf }: M
         <span>Buscar emisora</span>
         <input
           type="search"
-          value={query}
+          value={stationQuery}
           placeholder="Nombre de la emisora o de la ciudad"
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => setStationQuery(event.target.value)}
         />
       </label>
 
-      {search.isSearching && <small className="hint">Buscando emisoras...</small>}
-      {search.errorMessage !== null && <p className="error">{search.errorMessage}</p>}
+      {stations.isSearching && <small className="hint">Buscando emisoras...</small>}
+      {stations.errorMessage !== null && <p className="error">{stations.errorMessage}</p>}
 
-      {search.stations.length > 0 && (
+      {stations.stations.length > 0 && (
         <ul className="suggestions">
-          {search.stations.map((station) => (
+          {stations.stations.map((station) => (
             <li key={station.uuid}>
               <button type="button" disabled={addStation.isPending} onClick={() => addStation.mutate(station)}>
-                {station.name}
-                <span className="hint">{describe(station)}</span>
+                <span className="track-line">
+                  {station.name}
+                  <span className="hint">{describeStation(station)}</span>
+                </span>
               </button>
             </li>
           ))}
@@ -59,20 +73,38 @@ export function MusicEditor({ cityId, cityName, countryCode, errorMessageOf }: M
       )}
 
       <label className="field">
-        <span>O pega un enlace de YouTube</span>
+        <span>Buscar cancion</span>
         <input
-          value={videoUrl}
-          placeholder="https://www.youtube.com/watch?v=..."
-          onChange={(event) => setVideoUrl(event.target.value)}
+          type="search"
+          value={trackQuery}
+          placeholder="Titulo o artista"
+          onChange={(event) => setTrackQuery(event.target.value)}
         />
       </label>
 
-      <button type="button" className="secondary" disabled={videoUrl.trim() === '' || addVideo.isPending} onClick={submitVideo}>
-        Agregar video
-      </button>
+      <small className="hint">Del catalogo de iTunes: suenan 30 segundos, en bucle.</small>
+
+      {tracks.isSearching && <small className="hint">Buscando canciones...</small>}
+      {tracks.errorMessage !== null && <p className="error">{tracks.errorMessage}</p>}
+
+      {tracks.tracks.length > 0 && (
+        <ul className="suggestions">
+          {tracks.tracks.map((track) => (
+            <li key={track.id}>
+              <button type="button" disabled={addTrack.isPending} onClick={() => addTrack.mutate(track)}>
+                {track.imageUrl !== null && <img className="cover" src={track.imageUrl} alt="" loading="lazy" />}
+                <span className="track-line">
+                  {track.name}
+                  <span className="hint">{describeTrack(track)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {addStation.error !== null && <p className="error">{errorMessageOf(addStation.error)}</p>}
-      {addVideo.error !== null && <p className="error">{errorMessageOf(addVideo.error)}</p>}
+      {addTrack.error !== null && <p className="error">{errorMessageOf(addTrack.error)}</p>}
     </div>
   )
 }

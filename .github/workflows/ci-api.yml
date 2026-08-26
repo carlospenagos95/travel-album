@@ -1,0 +1,40 @@
+name: CI API
+
+# GitHub solo lee los flujos de la raiz del repositorio, asi que los dos
+# proyectos se orquestan desde aqui. El filtro de rutas evita compilar la API
+# cuando el cambio fue solo del frontend.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'album-viajes-api/**'
+      - '.github/workflows/ci-api.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'album-viajes-api/**'
+      - '.github/workflows/ci-api.yml'
+
+defaults:
+  run:
+    working-directory: album-viajes-api
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: album-viajes-api/global.json
+
+      - run: dotnet restore
+
+      # El build no permite warnings: TreatWarningsAsErrors esta activo.
+      - run: dotnet build --no-restore --configuration Release
+
+      # Incluye los tests de arquitectura (si alguien rompe la regla de
+      # dependencia de las capas, el pipeline falla aqui) y los de integracion,
+      # que levantan PostgreSQL con Testcontainers sobre el Docker del runner.
+      - run: dotnet test --no-build --configuration Release --verbosity normal

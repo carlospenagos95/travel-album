@@ -97,7 +97,8 @@ Musica:
 | GET    | `/api/cities/{id}/music/{musicId}/stream`         | Publico |
 | GET    | `/api/stations/search?query=&countryCode=`        | Duenio  |
 | POST   | `/api/cities/{id}/music/radio`                    | Duenio  |
-| POST   | `/api/cities/{id}/music/youtube`                  | Duenio  |
+| GET    | `/api/tracks/search?query=`                       | Duenio  |
+| POST   | `/api/cities/{id}/music/track`                    | Duenio  |
 | PUT    | `/api/cities/{id}/music/{musicId}/default`        | Duenio  |
 | DELETE | `/api/cities/{id}/music/{musicId}`                | Duenio  |
 
