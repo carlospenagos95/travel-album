@@ -1,0 +1,251 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Un despliegue a la vez: evita que dos push seguidos se pisen en el servidor.
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: album-viajes-api/global.json
+
+      - name: Compilar y probar la API
+        working-directory: album-viajes-api
+        run: |
+          dotnet restore
+          dotnet build --no-restore --configuration Release
+          dotnet test --no-build --configuration Release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: album-viajes-web/package-lock.json
+
+      - name: Revisar y compilar el album
+        working-directory: album-viajes-web
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+  build-push:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      owner: ${{ steps.meta.outputs.owner }}
+    strategy:
+      matrix:
+        include:
+          - name: api
+            context: album-viajes-api
+          - name: web
+            context: album-viajes-web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        name: Etiquetas de la imagen
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          # ghcr.io solo acepta el nombre del propietario en minusculas.
+          echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+          echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          # Tag por commit (lo que se despliega) + latest (referencia movil).
+          tags: |
+            ghcr.io/${{ steps.meta.outputs.owner }}/album-viajes-${{ matrix.name }}:${{ steps.meta.outputs.tag }}
+            ghcr.io/${{ steps.meta.outputs.owner }}/album-viajes-${{ matrix.name }}:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Instalar cloudflared
+        run: |
+          curl --fail --silent --show-error \
+            --location \
+            --output cloudflared.deb \
+            "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb"
+
+          sudo dpkg -i cloudflared.deb
+          cloudflared --version
+
+      - name: Configurar el acceso SSH sobre Cloudflare Access
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          umask 077
+          mkdir -p ~/.ssh
+
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+          # El servidor no publica su puerto SSH: se llega por el tunel de
+          # Cloudflare Access con un token de servicio.
+          cat > ~/.ssh/config <<EOF
+          Host $SSH_HOST
+              User $SSH_USER
+              IdentityFile ~/.ssh/id_deploy
+              UserKnownHostsFile ~/.ssh/known_hosts
+              StrictHostKeyChecking yes
+              ProxyCommand cloudflared access ssh --hostname %h --service-token-id $CF_ACCESS_CLIENT_ID --service-token-secret $CF_ACCESS_CLIENT_SECRET
+          EOF
+
+      - name: Copiar la configuracion al servidor
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          ssh "$SSH_HOST" "mkdir -p '$DEPLOY_PATH/deploy'"
+
+          # En el servidor el fichero de produccion es el compose por defecto,
+          # asi que alli basta con `docker compose`.
+          scp docker-compose.prod.yml "$SSH_HOST:$DEPLOY_PATH/docker-compose.yml"
+
+          # Referencia para el host; el flujo no toca su nginx.
+          scp deploy/albumviajes.nginx.conf deploy/backup.sh "$SSH_HOST:$DEPLOY_PATH/deploy/"
+
+      - name: Escribir el .env del servidor
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GITHUB_OWNER: ${{ needs.build-push.outputs.owner }}
+          IMAGE_TAG: ${{ needs.build-push.outputs.tag }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          PUBLIC_URL: ${{ secrets.PUBLIC_URL }}
+          WIKIMEDIA_USER_AGENT: ${{ secrets.WIKIMEDIA_USER_AGENT }}
+          RADIO_USER_AGENT: ${{ secrets.RADIO_USER_AGENT }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        run: |
+          # El contenido viaja por stdin y nunca como argumento de ssh: los
+          # argumentos quedan a la vista en el `ps` del servidor.
+          {
+            echo "GITHUB_OWNER=$GITHUB_OWNER"
+            echo "API_TAG=$IMAGE_TAG"
+            echo "WEB_TAG=$IMAGE_TAG"
+            echo "POSTGRES_DB=$POSTGRES_DB"
+            echo "POSTGRES_USER=$POSTGRES_USER"
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"
+            echo "PUBLIC_URL=$PUBLIC_URL"
+            # Traefik enruta por host, sin esquema ni barra final.
+            echo "PUBLIC_HOST=$(echo "$PUBLIC_URL" | sed -E 's#^[a-z]+://##; s#/.*$##')"
+            echo "WIKIMEDIA_USER_AGENT=$WIKIMEDIA_USER_AGENT"
+            echo "WIKIPEDIA_LANGUAGE=es"
+            echo "RADIO_USER_AGENT=$RADIO_USER_AGENT"
+            echo "MUSIC_LIBRARY_COUNTRY=CO"
+            echo "OWNER_EMAIL=$OWNER_EMAIL"
+            echo "GOOGLE_CLIENT_ID=$GOOGLE_CLIENT_ID"
+            echo "GOOGLE_CLIENT_SECRET=$GOOGLE_CLIENT_SECRET"
+            echo "GOOGLE_PHOTOS_TIMEOUT_SECONDS=120"
+            echo "GOOGLE_PHOTOS_MAX_BYTES=31457280"
+            echo "GOOGLE_PHOTOS_POLL_SECONDS=5"
+            echo "PHOTO_THUMBNAIL_WIDTH=480"
+          } | ssh "$SSH_HOST" "umask 077 && cat > '$DEPLOY_PATH/.env' && chmod 600 '$DEPLOY_PATH/.env'"
+
+      - name: Sembrar config.js la primera vez
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          # El config.js del servidor es suyo: lleva el centro y el zoom del mapa
+          # que haya elegido el usuario, y pisarlo en cada despliegue los borraria.
+          scp config.example.js "$SSH_HOST:$DEPLOY_PATH/config.example.js"
+
+          ssh "$SSH_HOST" \
+            "test -f '$DEPLOY_PATH/config.js' || cp '$DEPLOY_PATH/config.example.js' '$DEPLOY_PATH/config.js'"
+
+      - name: Desplegar
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # El script completo, con sus valores dentro, viaja por stdin: pasarlos
+          # como argumentos de ssh dejaria el token de GHCR a la vista en el `ps`
+          # del servidor.
+          {
+            echo "DEPLOY_PATH='$DEPLOY_PATH'"
+            echo "GHCR_USER='$GHCR_USER'"
+            echo "GHCR_TOKEN='$GHCR_TOKEN'"
+            cat <<'REMOTE'
+
+          echo "$GHCR_TOKEN" | docker login ghcr.io \
+            -u "$GHCR_USER" \
+            --password-stdin
+
+          cd "$DEPLOY_PATH"
+
+          docker compose pull
+
+          # La API aplica sus migraciones al arrancar; no hay paso manual.
+          docker compose up -d --remove-orphans
+
+          docker image prune -f
+
+          docker logout ghcr.io
+          REMOTE
+          } | ssh "$SSH_HOST" 'bash -euo pipefail -s'
+
+      - name: Comprobar que responde
+        env:
+          PUBLIC_URL: ${{ secrets.PUBLIC_URL }}
+        run: |
+          check() {
+            for i in $(seq 1 10); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' "$1" || true)
+              if [ "$code" = "200" ]; then echo "OK $1 ($code)"; return 0; fi
+              echo "intento $i en $1: $code"; sleep 6
+            done
+            echo "$1 no respondio 200 tras el despliegue"
+            return 1
+          }
+
+          check "$PUBLIC_URL/"
+
+          # La lista de ciudades es publica: comprobarla cubre de una vez el
+          # proxy, la API y la base de datos.
+          check "$PUBLIC_URL/api/cities"

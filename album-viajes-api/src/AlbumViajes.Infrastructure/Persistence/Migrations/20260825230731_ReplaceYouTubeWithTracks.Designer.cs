@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using AlbumViajes.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace AlbumViajes.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(AlbumViajesDbContext))]
-    partial class AlbumViajesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825230731_ReplaceYouTubeWithTracks")]
+    partial class ReplaceYouTubeWithTracks
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

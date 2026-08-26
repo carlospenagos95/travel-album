@@ -302,9 +302,9 @@ public sealed class City : Entity
         return source.IsSuccess ? Attach(source.Value, now) : source.Error!;
     }
 
-    public Result<MusicSource> AddYouTubeVideo(string urlOrId, string? title, DateTimeOffset now)
+    public Result<MusicSource> AddTrack(string trackId, string title, string? artist, string audioUrl, DateTimeOffset now)
     {
-        var source = MusicSource.ForYouTube(Id, urlOrId, title, now);
+        var source = MusicSource.ForTrack(Id, trackId, title, artist, audioUrl, now);
 
         return source.IsSuccess ? Attach(source.Value, now) : source.Error!;
     }

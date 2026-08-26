@@ -12,6 +12,8 @@ export interface MapConfig {
   /** Centro del mapa al abrir la pagina, en [latitud, longitud]. */
   center: [number, number]
   zoom: number
+  /** Acercamiento al abrir una ciudad: lo bastante cerca para ver el casco urbano. */
+  cityZoom: number
 }
 
 interface RuntimeConfig {
@@ -19,6 +21,7 @@ interface RuntimeConfig {
     centerLatitude?: unknown
     centerLongitude?: unknown
     zoom?: unknown
+    cityZoom?: unknown
   }
 }
 
@@ -32,6 +35,7 @@ declare global {
 const DEFAULT_MAP: MapConfig = {
   center: [4.711, -74.0721],
   zoom: 6,
+  cityZoom: 12,
 }
 
 const LATITUDE_RANGE = 90
@@ -49,11 +53,13 @@ function readMapConfig(): MapConfig {
   const latitude = numberWithin(map?.centerLatitude, -LATITUDE_RANGE, LATITUDE_RANGE)
   const longitude = numberWithin(map?.centerLongitude, -LONGITUDE_RANGE, LONGITUDE_RANGE)
   const zoom = numberWithin(map?.zoom, MIN_ZOOM, MAX_ZOOM)
+  const cityZoom = numberWithin(map?.cityZoom, MIN_ZOOM, MAX_ZOOM)
 
   return {
     // Latitud y longitud van juntas: media coordenada valida no es un centro.
     center: latitude !== null && longitude !== null ? [latitude, longitude] : DEFAULT_MAP.center,
     zoom: zoom ?? DEFAULT_MAP.zoom,
+    cityZoom: cityZoom ?? DEFAULT_MAP.cityZoom,
   }
 }
 

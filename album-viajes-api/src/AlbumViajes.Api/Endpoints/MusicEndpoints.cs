@@ -32,6 +32,19 @@ internal static class MusicEndpoints
             .WithTags("Music")
             .WithName("SearchRadioStations")
             .WithSummary("Busca emisoras en el directorio para asociarlas a una ciudad.");
+
+        app.MapGet("/api/tracks/search", async (
+                string query,
+                SearchTracksHandler handler,
+                CancellationToken cancellationToken) =>
+            {
+                var result = await handler.HandleAsync(query, cancellationToken);
+                return result.ToHttpResult(Results.Ok);
+            })
+            .RequireAuthorization(OwnerAuthentication.OwnerPolicy)
+            .WithTags("Music")
+            .WithName("SearchTracks")
+            .WithSummary("Busca canciones en el catalogo para asociarlas a una ciudad.");
     }
 
     private static void MapCityMusic(IEndpointRouteBuilder app)
@@ -44,18 +57,26 @@ internal static class MusicEndpoints
         var owned = app.MapGroup(MusicRoute).WithTags("Music").RequireAuthorization(OwnerAuthentication.OwnerPolicy);
 
         // Publico: quien ve el album oye la ciudad. El servidor hace de puente
-        // porque muchas emisoras siguen publicando el stream en http plano.
+        // porque muchas emisoras siguen publicando el stream en http plano y
+        // porque iTunes marca sus muestras con un tipo que no todos reconocen.
         music.MapGet("/{musicSourceId:guid}/stream", async (
                 Guid cityId,
                 Guid musicSourceId,
-                StreamRadioStationHandler handler,
+                StreamMusicSourceHandler handler,
                 CancellationToken cancellationToken) =>
             {
                 var result = await handler.HandleAsync(cityId, musicSourceId, cancellationToken);
-                return result.ToHttpResult(audio => Results.Stream(audio.Content, audio.ContentType));
+
+                // Con rangos activos el navegador puede pedir trozos sueltos, que
+                // es lo que necesita para leer el indice de un .m4a. La radio no
+                // los admite: su stream no termina y no se puede recorrer.
+                return result.ToHttpResult(audio => Results.Stream(
+                    audio.Content,
+                    audio.ContentType,
+                    enableRangeProcessing: audio.SupportsRange));
             })
-            .WithName("StreamRadioStation")
-            .WithSummary("Reenvia el audio de la emisora asociada a la ciudad.");
+            .WithName("StreamMusicSource")
+            .WithSummary("Reenvia el audio de la fuente de musica asociada a la ciudad.");
 
         owned.MapPost("/radio", async (
                 Guid cityId,
@@ -69,17 +90,17 @@ internal static class MusicEndpoints
             .WithName("AddRadioStation")
             .WithSummary("Asocia una emisora de radio a la ciudad.");
 
-        owned.MapPost("/youtube", async (
+        owned.MapPost("/track", async (
                 Guid cityId,
-                AddYouTubeVideoRequest request,
-                AddYouTubeVideoHandler handler,
+                AddTrackRequest request,
+                AddTrackHandler handler,
                 CancellationToken cancellationToken) =>
             {
                 var result = await handler.HandleAsync(cityId, request, cancellationToken);
                 return result.ToHttpResult(source => Results.Created($"/api/cities/{cityId}/music/{source.Id}", source));
             })
-            .WithName("AddYouTubeVideo")
-            .WithSummary("Asocia un video de YouTube a la ciudad.");
+            .WithName("AddTrack")
+            .WithSummary("Asocia una cancion del catalogo a la ciudad.");
 
         owned.MapPut("/{musicSourceId:guid}/default", async (
                 Guid cityId,

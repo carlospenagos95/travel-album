@@ -16,7 +16,9 @@
 set -euo pipefail
 
 DESTINO="${1:-./backups}"
-COMPOSE="docker compose -f docker-compose.prod.yml"
+# En el servidor el fichero de produccion se llama docker-compose.yml, que es el
+# que compose toma por defecto.
+COMPOSE="docker compose"
 FECHA="$(date +%Y%m%d-%H%M%S)"
 # Los volumenes llevan el nombre del proyecto de compose como prefijo.
 PROYECTO="$(basename "$PWD")"

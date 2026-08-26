@@ -15,6 +15,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    networks:
+      - internal
     # Sin puertos publicados: solo la API la alcanza por la red interna.
 
   api:
@@ -32,13 +34,27 @@ services:
       Enrichment__WikipediaLanguage: ${WIKIPEDIA_LANGUAGE:-es}
       # Radio Browser pide lo mismo que Wikimedia: un User-Agent identificable.
       Music__UserAgent: ${RADIO_USER_AGENT}
+      # Catalogo de canciones: el buscador de iTunes, que no pide clave. El pais
+      # decide que canciones se ven y cuales estan disponibles.
+      Music__LibraryCountry: ${MUSIC_LIBRARY_COUNTRY:-CO}
       # Quien administra el album. El resto del mundo solo lee.
       Auth__AllowedEmails__0: ${OWNER_EMAIL}
+      # Las mismas credenciales sirven para entrar y para Google Photos: es un
+      # unico cliente OAuth con el permiso photospicker.mediaitems.readonly.
+      # El redirect_uri no se configura aqui, la API lo deriva de la peticion y
+      # del X-Forwarded-Proto del proxy; en Google Cloud debe estar autorizado
+      # exactamente ${PUBLIC_URL}/api/auth/google/callback.
       Auth__Google__ClientId: ${GOOGLE_CLIENT_ID}
       Auth__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET}
       # Album y API comparten origen detras del proxy, asi que basta la raiz.
       Auth__PostLoginRedirect: /
+      # Descargar un original grande tarda mas que una llamada normal, y el tope
+      # por foto protege el disco del servidor de un video o un RAW enorme.
+      GooglePhotos__TimeoutSeconds: ${GOOGLE_PHOTOS_TIMEOUT_SECONDS:-120}
+      GooglePhotos__MaxPhotoBytes: ${GOOGLE_PHOTOS_MAX_BYTES:-31457280}
+      GooglePhotos__DefaultPollIntervalSeconds: ${GOOGLE_PHOTOS_POLL_SECONDS:-5}
       PhotoStorage__RootPath: /data/photos
+      PhotoStorage__ThumbnailWidth: ${PHOTO_THUMBNAIL_WIDTH:-480}
     volumes:
       # Las fotos y las claves de Data Protection sobreviven a los redespliegues.
       # Perder las segundas invalida las sesiones y el permiso de Google guardado.
@@ -50,20 +66,45 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    networks:
+      - internal
 
   web:
     image: ghcr.io/${GITHUB_OWNER}/album-viajes-web:${WEB_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - api
-    ports:
-      # Solo escucha en localhost: el reverse proxy con TLS del host publica el
-      # sitio. Ver deploy/albumviajes.nginx.conf.
-      - "127.0.0.1:8081:80"
+    # Sin puertos publicados: quien lo expone es Traefik desde la red `proxy`.
+    # `internal` sigue haciendo falta porque el nginx de esta imagen resuelve
+    # el nombre `api` para servir /api en el mismo origen.
+    networks:
+      - proxy
+      - internal
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      traefik.enable: 'true'
+      traefik.docker.network: proxy
+      traefik.http.routers.album-viajes.rule: Host(`${PUBLIC_HOST}`)
+      traefik.http.routers.album-viajes.entrypoints: web
+      traefik.http.services.album-viajes.loadbalancer.server.port: '80'
+      homepage.group: Proyectos Personales
+      homepage.name: Album de Viajes
+      homepage.icon: /icons/album-viajes.png
+      homepage.href: ${PUBLIC_URL}
+      homepage.description: Album de viajes con mapa de ciudades, fotos de Google Photos, radio local y datos de Wikipedia.
     volumes:
       # Centro y zoom del mapa. Se lee al abrir la pagina, asi que cambiarlo es
       # editar el archivo y recargar: no hace falta reconstruir la imagen.
       - ./config.js:/usr/share/nginx/html/config.js:ro
+
+networks:
+  # La crea Traefik; aqui solo se engancha.
+  proxy:
+    external: true
+  # Trafico entre web, api y db: no sale del host.
+  internal:
+    driver: bridge
 
 volumes:
   pgdata:

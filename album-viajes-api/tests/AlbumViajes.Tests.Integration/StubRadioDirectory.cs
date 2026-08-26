@@ -46,12 +46,28 @@ public sealed class StubAudioStreamReader : IAudioStreamReader
     /// <summary>Ultima direccion que se pidio abrir, para comprobar que se proxea la correcta.</summary>
     public Uri? LastRequestedUrl { get; private set; }
 
+    /// <summary>
+    /// Lo que responde el origen. Se puede cambiar para comprobar que el tipo de
+    /// contenido raro con el que iTunes marca sus muestras no llega al navegador.
+    /// </summary>
+    public string ContentType { get; set; } = "audio/mpeg";
+
+    public void Reset() => ContentType = "audio/mpeg";
+
     public Task<Result<AudioFeed>> OpenAsync(Uri streamUrl, CancellationToken cancellationToken)
     {
         LastRequestedUrl = streamUrl;
 
-        var content = new MemoryStream(Encoding.UTF8.GetBytes(Sample));
-
-        return Task.FromResult(Result<AudioFeed>.Success(new AudioFeed(content, "audio/mpeg")));
+        return Task.FromResult(Result<AudioFeed>.Success(new AudioFeed(Sampled(), ContentType)));
     }
+
+    public Task<Result<AudioFeed>> DownloadAsync(Uri fileUrl, CancellationToken cancellationToken)
+    {
+        LastRequestedUrl = fileUrl;
+
+        // Como el de verdad: el fichero llega entero y se puede recorrer.
+        return Task.FromResult(Result<AudioFeed>.Success(new AudioFeed(Sampled(), ContentType, SupportsRange: true)));
+    }
+
+    private static MemoryStream Sampled() => new(Encoding.UTF8.GetBytes(Sample));
 }

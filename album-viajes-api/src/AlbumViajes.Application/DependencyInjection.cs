@@ -27,10 +27,11 @@ public static class DependencyInjection
 
         services.AddScoped<SearchRadioStationsHandler>();
         services.AddScoped<AddRadioStationHandler>();
-        services.AddScoped<AddYouTubeVideoHandler>();
+        services.AddScoped<SearchTracksHandler>();
+        services.AddScoped<AddTrackHandler>();
         services.AddScoped<SetDefaultMusicSourceHandler>();
         services.AddScoped<RemoveMusicSourceHandler>();
-        services.AddScoped<StreamRadioStationHandler>();
+        services.AddScoped<StreamMusicSourceHandler>();
 
         services.AddScoped<SignInOwnerHandler>();
 

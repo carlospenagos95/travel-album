@@ -1,0 +1,36 @@
+name: CI Web
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'album-viajes-web/**'
+      - '.github/workflows/ci-web.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'album-viajes-web/**'
+      - '.github/workflows/ci-web.yml'
+
+defaults:
+  run:
+    working-directory: album-viajes-web
+
+jobs:
+  build-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: album-viajes-web/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # tsc corre en modo estricto antes de empaquetar con Vite.
+      - run: npm run build

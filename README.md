@@ -26,17 +26,21 @@ MVP completo. Lo que hace el album:
 - **Fotos**: se eligen en Google Photos y se copian al servidor. Se guarda el
   archivo y no el enlace porque el que da Google caduca en una hora; con la copia
   el album sigue viendose aunque Google no responda.
-- **Musica**: una emisora del directorio Radio Browser o un video de YouTube por
-  ciudad, que suena al abrirla. La radio pasa por un proxy del propio servidor:
-  muchas emisoras siguen en http plano y el navegador las bloquearia al servir el
-  album por https.
+- **Musica**: una emisora del directorio Radio Browser o una cancion del
+  catalogo de iTunes por ciudad, que suena al abrirla. De las canciones suenan
+  **30 segundos en bucle**: es lo que entrega cualquier catalogo comercial sin
+  pedirle una cuenta de pago a quien mira el album. Todo pasa por un proxy del
+  propio servidor: muchas emisoras siguen en http plano y el navegador las
+  bloquearia al servir el album por https, y iTunes marca sus muestras con un
+  tipo de contenido que no todos los navegadores reconocen.
 - **Acceso**: ver el album no pide identificarse. Editarlo si, con Google y una
   lista de correos autorizados.
 
 ## Configuracion del mapa
 
 El mapa abre centrado en la ciudad que se defina en `config.js`, que el
-navegador lee al cargar la pagina. Para desarrollo, ese archivo es
+navegador lee al cargar la pagina. `cityZoom` es lo cerca que se acerca al abrir
+una ciudad; el boton "Vista general" devuelve el mapa a `center` y `zoom`. Para desarrollo, ese archivo es
 `album-viajes-web/public/config.js`; en el servidor, el `config.js` de la raiz,
 que `docker-compose.prod.yml` monta dentro del contenedor web.
 
@@ -78,15 +82,19 @@ El URI de redireccion autorizado en Google debe ser
 
 ## Despliegue en el servidor propio
 
-Las imagenes las construye GitHub Actions en cada push a `main` y las publica en
-GHCR. El paso a paso completo, con las credenciales de Google, el proxy con TLS y
-las copias de seguridad, esta en [`deploy/README.md`](deploy/README.md).
+Cada push a `main` dispara `.github/workflows/deploy.yml`: prueba los dos
+proyectos, publica sus imagenes en GHCR etiquetadas con el commit, las lleva al
+servidor por SSH sobre Cloudflare Access y comprueba que el sitio responde. El
+`.env` del servidor lo escribe el propio flujo con los secrets del repositorio.
+
+El paso a paso, con las credenciales de Google, la lista de secrets, el proxy con
+TLS y las copias de seguridad, esta en [`deploy/README.md`](deploy/README.md).
+
+Para levantarlo a mano en el servidor:
 
 ```bash
-cp .env.example .env            # rellenar credenciales y dominio
-cp config.example.js config.js  # centro y zoom del mapa
-docker compose -f docker-compose.prod.yml pull
-docker compose -f docker-compose.prod.yml up -d
+docker compose pull
+docker compose up -d
 ```
 
 El servicio `web` escucha en `127.0.0.1:8081`; delante va un reverse proxy con

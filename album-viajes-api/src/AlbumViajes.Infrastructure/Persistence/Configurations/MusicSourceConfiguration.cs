@@ -29,7 +29,9 @@ internal sealed class MusicSourceConfiguration : IEntityTypeConfiguration<MusicS
         builder.Property(source => source.Label).HasMaxLength(MusicSource.MaxLabelLength).IsRequired();
         builder.Property(source => source.RadioStationUuid).HasMaxLength(64);
         builder.Property(source => source.RadioStreamUrl).HasMaxLength(StreamUrl.MaxLength);
-        builder.Property(source => source.YouTubeVideoId).HasMaxLength(32);
+        builder.Property(source => source.TrackId).HasMaxLength(MusicSource.MaxTrackIdLength);
+        builder.Property(source => source.TrackArtist).HasMaxLength(MusicSource.MaxLabelLength);
+        builder.Property(source => source.TrackAudioUrl).HasMaxLength(StreamUrl.MaxLength);
 
         // "Solo una fuente por ciudad suena al abrirla" lo garantiza el agregado,
         // que se carga y se guarda entero, y no un indice unico parcial: cambiar

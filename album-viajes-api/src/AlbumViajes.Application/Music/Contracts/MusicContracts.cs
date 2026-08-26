@@ -3,17 +3,19 @@ using AlbumViajes.Domain.Entities;
 namespace AlbumViajes.Application.Music.Contracts;
 
 /// <summary>
-/// Fuente de musica lista para reproducir. Para la radio se expone la URL del
-/// proxy propio, nunca la del stream original: muchas siguen en http plano y el
-/// navegador las bloquearia al servir el album por https.
+/// Fuente de musica lista para reproducir. Siempre se expone la URL del proxy
+/// propio, nunca la del origen: muchas emisoras siguen en http plano y el
+/// navegador las bloquearia al servir el album por https, y las muestras de
+/// iTunes llegan con un tipo de contenido que no todos los navegadores
+/// reconocen. De paso, quien mira el album no le deja su direccion a Apple.
 /// </summary>
 public sealed record MusicSourceResponse(
     Guid Id,
     string Kind,
     string Label,
     bool IsDefault,
-    string? StreamUrl,
-    string? YouTubeVideoId);
+    string StreamUrl,
+    string? Artist);
 
 public sealed record RadioStationResponse(
     string Uuid,
@@ -26,9 +28,17 @@ public sealed record RadioStationResponse(
     string? Codec,
     int Bitrate);
 
+public sealed record LibraryTrackResponse(
+    string Id,
+    string Name,
+    string? ArtistName,
+    string AudioUrl,
+    int DurationSeconds,
+    string? ImageUrl);
+
 public sealed record AddRadioStationRequest(string StationUuid, string StationName, string StreamUrl);
 
-public sealed record AddYouTubeVideoRequest(string UrlOrId, string? Title);
+public sealed record AddTrackRequest(string TrackId, string Title, string? Artist, string AudioUrl);
 
 public static class MusicMappings
 {
@@ -37,8 +47,8 @@ public static class MusicMappings
         source.Kind.ToString(),
         source.Label,
         source.IsDefault,
-        source.Kind == MusicKind.RadioStation ? StreamUrlFor(source) : null,
-        source.YouTubeVideoId);
+        StreamUrlFor(source),
+        source.TrackArtist);
 
     public static string StreamUrlFor(MusicSource source) =>
         $"/api/cities/{source.CityId}/music/{source.Id}/stream";
