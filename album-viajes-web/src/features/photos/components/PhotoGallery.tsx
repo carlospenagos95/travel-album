@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { Photo } from '../../../api/types'
 import { useCaptionPhoto, useDeletePhoto, useReorderPhotos } from '../hooks/usePhotos'
+import { LoadingImage } from './LoadingImage'
 import { PhotoLightbox } from './PhotoLightbox'
 
 interface PhotoGalleryProps {
@@ -59,7 +60,7 @@ export function PhotoGallery({ cityId, photos, canEdit }: PhotoGalleryProps) {
               onClick={() => setOpenedIndex(index)}
               aria-label={`Ver ${photo.caption ?? photo.fileName}`}
             >
-              <img src={photo.thumbnailUrl} alt={photo.caption ?? photo.fileName} loading="lazy" />
+              <LoadingImage src={photo.thumbnailUrl} alt={photo.caption ?? photo.fileName} loading="lazy" />
               {index === 0 && <span className="badge">Portada</span>}
             </button>
 

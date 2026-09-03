@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { Photo } from '../../../api/types'
+import { LoadingImage } from './LoadingImage'
 
 interface PhotoLightboxProps {
   photos: Photo[]
@@ -53,7 +54,7 @@ export function PhotoLightbox({ photos, index, onMove, onClose }: PhotoLightboxP
       {/* La key por foto fuerza el remontaje al cambiar de indice, asi la
           animacion de transicion (CSS) se dispara en cada cambio. */}
       <figure className="lightbox-figure" key={photo.id}>
-        <img src={photo.fileUrl} alt={photo.caption ?? photo.fileName} />
+        <LoadingImage src={photo.fileUrl} alt={photo.caption ?? photo.fileName} />
         <figcaption>
           {photo.caption ?? photo.fileName}
           <span className="hint">

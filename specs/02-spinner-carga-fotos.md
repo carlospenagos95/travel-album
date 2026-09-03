@@ -1,6 +1,6 @@
 # SPEC 02 — Spinner de carga en fotos
 
-> **Status:** Draft
+> **Status:** Approved
 > **Depends on:** (ninguno; compatible con SPEC 01 pero no depende de el)
 > **Date:** 2026-09-02
 > **Objective:** Mostrar un spinner circular sobre cada foto mientras su imagen
@@ -49,14 +49,14 @@ Esta funcionalidad no introduce estructuras de datos nuevas ni cambia
 
 ## Acceptance criteria
 
-- [ ] Al abrir el album con conexion lenta (throttling en DevTools), las
+- [X] Al abrir el album con conexion lenta (throttling en DevTools), las
       miniaturas muestran spinner hasta que cada imagen termina de cargar.
-- [ ] Al abrir el lightbox, la foto grande muestra spinner hasta que carga.
-- [ ] Al navegar con flechas/teclado a una foto no cargada antes, el spinner
+- [X] Al abrir el lightbox, la foto grande muestra spinner hasta que carga.
+- [X] Al navegar con flechas/teclado a una foto no cargada antes, el spinner
       vuelve a aparecer para esa foto.
-- [ ] Si una imagen falla al cargar (`onError`), el spinner desaparece (no gira
+- [X] Si una imagen falla al cargar (`onError`), el spinner desaparece (no gira
       indefinidamente).
-- [ ] Ninguna funcionalidad existente de la galeria (reordenar, poner pie,
+- [X] Ninguna funcionalidad existente de la galeria (reordenar, poner pie,
       quitar foto, abrir lightbox) se rompe.
 
 ## Decisions

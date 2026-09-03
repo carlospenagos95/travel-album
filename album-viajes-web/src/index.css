@@ -576,6 +576,45 @@ button.link.selected {
   display: block;
 }
 
+.gallery .thumb .loading-image {
+  width: 100%;
+  height: 100%;
+}
+
+/* Spinner de carga superpuesto sobre miniaturas y foto grande del lightbox
+   mientras la imagen no termino de cargar (SPEC 02). */
+.loading-image {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.loading-image.is-loading {
+  min-width: 96px;
+  min-height: 96px;
+}
+
+.loading-image img {
+  display: block;
+}
+
+.spinner {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  border: 3px solid rgba(59, 47, 39, 0.2);
+  border-top-color: var(--border);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .gallery .badge {
   position: absolute;
   left: 0.65rem;
