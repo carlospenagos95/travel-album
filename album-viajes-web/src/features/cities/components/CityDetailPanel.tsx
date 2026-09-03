@@ -55,7 +55,7 @@ export function CityDetailPanel({
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false)
 
   return (
-    <article className="panel">
+    <article className="panel album-page">
       <header className="panel-header">
         <div>
           <h2>{city.name}</h2>
