@@ -1,15 +1,23 @@
 :root {
-  --bg: #0f172a;
-  --panel: #1e293b;
-  --panel-soft: #273449;
-  --text: #e2e8f0;
-  --muted: #94a3b8;
-  --accent: #38bdf8;
-  --danger: #f87171;
-  --border: #334155;
+  /* Paleta "album fisico": tonos papel envejecido, tinta sepia y ribete terracota. */
+  --bg: #e9dcc0;
+  --panel: #fbf4e2;
+  --panel-soft: #f1e6c9;
+  --text: #3b2f27;
+  --muted: #8a7360;
+  --accent: #b5674a;
+  --accent-contrast: #fdf6e8;
+  --danger: #a3423a;
+  --border: #d9c7a0;
 
-  color-scheme: dark;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-title: 'Caveat', cursive;
+  --font-body: 'Nunito Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Grano de papel sutil vía SVG de turbulencia, superpuesto con multiply. */
+  --paper-texture: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+
+  color-scheme: light;
+  font-family: var(--font-body);
   color: var(--text);
   background-color: var(--bg);
 }
@@ -24,12 +32,16 @@ body {
 }
 
 h1 {
-  font-size: 1.25rem;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 2rem;
   margin: 0;
 }
 
 h2 {
-  font-size: 1.05rem;
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.6rem;
   margin: 0 0 0.75rem;
 }
 
@@ -54,10 +66,15 @@ a {
   display: grid;
   grid-template-columns: 380px 1fr;
   height: 100vh;
+  background-color: var(--bg);
+  background-image: var(--paper-texture);
+  background-blend-mode: multiply;
 }
 
 .sidebar {
   background: var(--panel);
+  background-image: var(--paper-texture);
+  background-blend-mode: multiply;
   border-right: 1px solid var(--border);
   padding: 1rem;
   overflow-y: auto;
@@ -71,6 +88,12 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px double var(--border);
+}
+
+.sidebar-header h1 {
+  color: var(--accent);
 }
 
 .map-area {
@@ -96,6 +119,49 @@ a {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
+}
+
+/* Ficha de ciudad como "pagina de album": fondo papel, borde de pagina y
+   cabecera con estilo de titulo escrito a mano. */
+.album-page {
+  background: var(--panel);
+  background-image: var(--paper-texture);
+  background-blend-mode: multiply;
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 14px rgba(59, 47, 39, 0.18);
+  transform-origin: left center;
+  animation: page-open 0.45s ease-out;
+}
+
+/* Efecto de pagina que se voltea al abrir la ficha. La perspectiva va dentro
+   del propio transform (no en un ancestro estatico) para no crear, mientras
+   dura la ficha abierta, un containing block permanente que atraparia al
+   lightbox de pantalla completa dentro del ancho del sidebar. */
+@keyframes page-open {
+  from {
+    opacity: 0;
+    transform: perspective(1200px) rotateY(-18deg) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: perspective(1200px) rotateY(0deg) scale(1);
+  }
+}
+
+.album-page .panel-header {
+  padding-bottom: 0.65rem;
+  border-bottom: 1px dashed var(--border);
+}
+
+.album-page .panel-header h2 {
+  color: var(--accent);
+}
+
+.album-page section + section,
+.album-page .facts + section {
+  border-top: 1px dashed var(--border);
+  padding-top: 0.65rem;
 }
 
 .subtitle {
@@ -125,7 +191,7 @@ a {
 
 input,
 textarea {
-  background: #0f172a;
+  background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: 6px;
   color: var(--text);
@@ -149,7 +215,7 @@ button {
   background: var(--accent);
   border: none;
   border-radius: 6px;
-  color: #0f172a;
+  color: var(--accent-contrast);
   cursor: pointer;
   font: inherit;
   font-weight: 600;
@@ -185,6 +251,7 @@ button.icon {
 
 .city-list {
   list-style: none;
+  counter-reset: album-index;
   margin: 0;
   padding: 0;
   display: flex;
@@ -192,21 +259,42 @@ button.icon {
   gap: 0.35rem;
 }
 
+.city-list li {
+  counter-increment: album-index;
+}
+
 .city-list button {
   width: 100%;
   background: var(--panel-soft);
   color: var(--text);
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 4px;
   display: flex;
   justify-content: space-between;
   align-items: baseline;
   gap: 0.5rem;
   font-weight: 500;
   text-align: left;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.city-list button::before {
+  content: counter(album-index, decimal-leading-zero);
+  color: var(--muted);
+  font-size: 0.7rem;
+  letter-spacing: 0.05em;
+  margin-right: 0.25rem;
+}
+
+.city-list button:hover {
+  transform: translateX(2px);
+  box-shadow: 0 2px 6px rgba(59, 47, 39, 0.15);
 }
 
 .city-list button.selected {
-  border-color: var(--accent);
+  border-left-color: var(--accent);
+  background: var(--panel);
 }
 
 .city-list span {
@@ -218,7 +306,7 @@ button.icon {
   list-style: none;
   margin: 0.25rem 0 0;
   padding: 0;
-  background: #0f172a;
+  background: var(--panel-soft);
   border: 1px solid var(--border);
   border-radius: 6px;
   max-height: 190px;
@@ -377,7 +465,7 @@ button.icon {
 }
 
 .confirm {
-  background: rgba(248, 113, 113, 0.1);
+  background: rgba(163, 66, 58, 0.1);
   border: 1px solid var(--danger);
   border-radius: 8px;
   padding: 0.65rem;
@@ -397,7 +485,9 @@ button.icon {
   width: 44px;
   height: 44px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 3px rgba(59, 47, 39, 0.25);
   flex-shrink: 0;
 }
 
@@ -437,24 +527,46 @@ button.link.selected {
   font-weight: 600;
 }
 
-/* Galeria */
+/* Galeria: miniaturas con marco tipo polaroid, alternando una leve rotacion
+   para que se sientan sueltas como fotos apiladas en una pagina. */
 .gallery {
   list-style: none;
   margin: 0 0 0.5rem;
-  padding: 0;
+  padding: 0.5rem 0;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 0.9rem 0.6rem;
 }
 
 .gallery .thumb {
   position: relative;
-  padding: 0;
+  padding: 0.4rem 0.4rem 1.15rem;
   border: 1px solid var(--border);
-  background: var(--panel-soft);
-  overflow: hidden;
+  background: var(--panel);
+  box-shadow: 0 3px 8px rgba(59, 47, 39, 0.22);
+  overflow: visible;
   aspect-ratio: 1;
   width: 100%;
+  transform: rotate(-2deg);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gallery li:nth-child(3n + 1) .thumb {
+  transform: rotate(1.5deg);
+}
+
+.gallery li:nth-child(3n + 2) .thumb {
+  transform: rotate(-2deg);
+}
+
+.gallery li:nth-child(3n) .thumb {
+  transform: rotate(2.5deg);
+}
+
+.gallery .thumb:hover {
+  transform: rotate(0deg) scale(1.04);
+  box-shadow: 0 6px 16px rgba(59, 47, 39, 0.3);
+  z-index: 1;
 }
 
 .gallery .thumb img {
@@ -466,10 +578,10 @@ button.link.selected {
 
 .gallery .badge {
   position: absolute;
-  left: 0;
-  bottom: 0;
-  background: rgb(15 23 42 / 80%);
-  color: var(--muted);
+  left: 0.65rem;
+  top: 0.65rem;
+  background: rgb(59 47 39 / 80%);
+  color: var(--panel);
   font-size: 0.6rem;
   padding: 0.1rem 0.3rem;
 }
@@ -502,7 +614,7 @@ button.link.selected {
   position: fixed;
   inset: 0;
   z-index: 1000;
-  background: rgb(15 23 42 / 95%);
+  background: rgb(59 47 39 / 95%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -510,6 +622,8 @@ button.link.selected {
   padding: 1rem;
 }
 
+/* Marco tipo polaroid tambien para la foto abierta: papel alrededor de la
+   imagen y el pie de foto haciendo de anotacion al pie del marco. */
 .lightbox-figure {
   margin: 0;
   max-width: 90vw;
@@ -518,12 +632,32 @@ button.link.selected {
   flex-direction: column;
   gap: 0.5rem;
   align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1rem 1rem 1.15rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: photo-fade 0.25s ease-out;
+}
+
+/* Transicion al cambiar de foto: la key por foto remonta el <figure>, lo que
+   dispara esta animacion en cada cambio. */
+@keyframes photo-fade {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .lightbox-figure img {
   max-width: 100%;
-  max-height: 80vh;
+  max-height: 72vh;
   object-fit: contain;
+  display: block;
 }
 
 .lightbox-figure figcaption {

@@ -50,7 +50,9 @@ export function PhotoLightbox({ photos, index, onMove, onClose }: PhotoLightboxP
         {'<'}
       </button>
 
-      <figure className="lightbox-figure">
+      {/* La key por foto fuerza el remontaje al cambiar de indice, asi la
+          animacion de transicion (CSS) se dispara en cada cambio. */}
+      <figure className="lightbox-figure" key={photo.id}>
         <img src={photo.fileUrl} alt={photo.caption ?? photo.fileName} />
         <figcaption>
           {photo.caption ?? photo.fileName}
