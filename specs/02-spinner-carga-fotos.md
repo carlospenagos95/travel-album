@@ -1,6 +1,6 @@
 # SPEC 02 — Spinner de carga en fotos
 
-> **Status:** Approved
+> **Status:** Implemented
 > **Depends on:** (ninguno; compatible con SPEC 01 pero no depende de el)
 > **Date:** 2026-09-02
 > **Objective:** Mostrar un spinner circular sobre cada foto mientras su imagen
